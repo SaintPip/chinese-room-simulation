@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Chinese Room Interactive Simulation + Primer</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root{
+    --bg:#0f172a;
+    --card:#111827;
+    --ink:#e5e7eb;
+    --muted:#9ca3af;
+    --accent:#38bdf8;
+    --good:#22c55e;
+    --bad:#ef4444;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial;
+    background:linear-gradient(120deg,#0b1020,#0e1326 40%,#0b1020);
+    color:var(--ink);
+  }
+  header{padding:28px 16px; text-align:center; border-bottom:1px solid #1f2937}
+  header h1{margin:0 0 6px; font-weight:800; letter-spacing:.2px}
+  header p{margin:0; color:var(--muted)}
+  main{max-width:960px; margin:24px auto; padding:0 16px 64px}
+  .grid{display:grid; gap:18px}
+  @media(min-width:980px){ .grid{grid-template-columns:1.2fr .8fr} }
+
+  .card{
+    background:linear-gradient(180deg,#0f172a,#0d152b);
+    border:1px solid #1f2937; border-radius:14px; padding:18px;
+    box-shadow:0 20px 40px rgba(0,0,0,.35);
+  }
+  .card h2{margin:0 0 10px; font-size:1.1rem}
+  .card p, .card li{color:#cbd5e1}
+  .muted{color:var(--muted)}
+  .chip{display:inline-block; font-size:.85rem; padding:2px 8px; border-radius:999px; background:#0b2533; color:#93c5fd; border:1px solid #1e3a8a}
+
+  .sym{
+    font-size:1.6rem; letter-spacing:.2rem; word-break:break-all;
+    background:#0b1020; border:1px dashed #374151; padding:12px; border-radius:10px;
+  }
+  textarea{width:100%; min-height:84px; padding:10px; border-radius:10px; background:#0b1020; color:var(--ink); border:1px solid #374151}
+  button{
+    background:linear-gradient(180deg,#1f8bd7,#0ea5e9);
+    border:none; color:white; padding:10px 16px; border-radius:10px; cursor:pointer; font-weight:700;
+  }
+  button.secondary{background:#0b2533; border:1px solid #1e3a8a; color:#93c5fd}
+  button.ghost{background:transparent; border:1px dashed #334155; color:#cbd5e1}
+  .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .hidden{display:none}
+  .ok{color:var(--good); font-weight:700}
+  .bad{color:var(--bad); font-weight:700}
+  details{background:#0b1020; border:1px solid #1f2937; border-radius:10px; padding:10px 12px}
+  details > summary{cursor:pointer; font-weight:700}
+  ul.rules{columns:2; gap:18px; padding-left:18px}
+  @media(max-width:640px){ ul.rules{columns:1} }
+  .small{font-size:.92rem}
+  .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace; padding:2px 6px; border:1px solid #334155; border-radius:6px; background:#0b1020; color:#93c5fd}
+  footer{max-width:960px; margin:0 auto 40px; color:#94a3b8; font-size:.9rem; padding:0 16px}
+</style>
+</head>
+<body>
+  <header>
+    <h1>🧪 Chinese Room Interactive Simulation</h1>
+    <p>Follow a rulebook to transform input symbols — and notice how success ≠ understanding.</p>
+  </header>
+
+  <main class="grid">
+    <!-- LEFT: Simulation -->
+    <section class="card">
+      <h2>1) Generate Incoming Symbols</h2>
+      <p class="muted small">Click <span class="kbd">Generate</span> to get a fresh string (default length 8–12). Adjust length below if you want.</p>
+      <div class="row" style="margin:6px 0 12px">
+        <button onclick="generateInput()">Generate Input</button>
+        <button class="secondary" onclick="toggleSettings()">Length & options</button>
+        <span id="roundChip" class="chip hidden">Round 1</span>
+      </div>
+
+      <div id="settings" class="hidden small" style="margin:6px 0 12px">
+        <label>Min length:
+          <input id="minLen" type="number" value="8" min="3" max="40" class="kbd" style="width:80px; margin-left:6px" />
+        </label>
+        <label style="margin-left:10px">Max length:
+          <input id="maxLen" type="number" value="12" min="3" max="60" class="kbd" style="width:80px; margin-left:6px" />
+        </label>
+        <label style="margin-left:10px">Show full rulebook
+          <input id="showAllRules" type="checkbox" />
+        </label>
+      </div>
+
+      <div id="inputSymbols" class="sym" aria-live="polite"></div>
+
+      <hr style="border-color:#1f2937; margin:18px 0">
+
+      <h2>2) Rule Book (English, shape-based)</h2>
+      <p class="small muted">These are <em>syntactic</em> rules (by symbol shape), not semantic explanations.</p>
+      <ul id="ruleList" class="rules"></ul>
+
+      <h2>3) Your Output</h2>
+      <textarea id="userOutput" placeholder="Use the rulebook to map each input symbol…"></textarea>
+      <div class="row">
+        <button onclick="checkAnswer()">Submit Output</button>
+        <button class="ghost" onclick="revealAnswer()">Reveal Expected Output</button>
+      </div>
+
+      <div id="feedbackCard" class="hidden" style="margin-top:12px">
+        <p id="feedback"></p>
+      </div>
+
+      <details style="margin-top:14px">
+        <summary>Reflection prompts</summary>
+        <ol class="small">
+          <li>Did following the rules make you understand the symbols’ meanings?</li>
+          <li>How does successful performance differ from understanding?</li>
+          <li>If a computer follows a program perfectly, does it thereby “understand”?</li>
+        </ol>
+      </details>
+    </section>
+
+    <!-- RIGHT: Primer -->
+    <aside class="card">
+      <h2>About the Thought Experiment</h2>
+      <p class="small">
+        John Searle’s “Chinese Room” (1980) imagines a person who doesn’t know Chinese locked in a room
+        with a detailed rulebook written in English. Chinese characters (questions) are passed in; the
+        person consults the rulebook, manipulates the symbols, and passes back Chinese characters (answers).
+        From outside, responses look fluent — yet the person inside doesn’t understand Chinese. The point:
+        <strong>manipulating syntax isn’t the same as possessing semantics</strong>.
+      </p>
+
+      <details>
+        <summary><strong>Key claim</strong> (Strong AI vs. Weak AI)</summary>
+        <p class="small">
+          Searle targets “Strong AI”: the view that an appropriately programmed computer literally has a
+          mind and understands. He accepts “Weak AI”: computers can simulate understanding and be useful
+          for studying cognition. This simulation highlights the gap between producing right outputs and
+          genuinely grasping meaning.
+        </p>
+      </details>
+
+      <details>
+        <summary><strong>Common replies & Searle’s rejoinders</strong></summary>
+        <ul class="small">
+          <li><em>Systems Reply:</em> The whole system (person + rulebook) understands.  
+            <span class="muted">Searle: Even if he memorized the entire system, he’d still not understand.</span>
+          </li>
+          <li><em>Robot Reply:</em> Put the system in a robot interacting with the world; meaning may emerge.  
+            <span class="muted">Searle: Adding sensors/actuators doesn’t turn syntax into semantics.</span>
+          </li>
+          <li><em>Brain Simulator Reply:</em> Simulate neuron activity.  
+            <span class="muted">Searle: Accurate simulation is still symbol manipulation, not understanding.</span>
+          </li>
+        </ul>
+      </details>
+
+      <details>
+        <summary><strong>How to use in class</strong></summary>
+        <ul class="small">
+          <li>Have students complete two rounds, then journal: “I produced the right output, but did I understand?”</li>
+          <li>Debate: credit “understanding” to the <em>system</em> vs. the <em>operator</em>.</li>
+          <li>Bridge to LLMs: What evidence, if any, would count as semantics beyond syntax?</li>
+        </ul>
+      </details>
+
+      <p class="muted small">Tip: Press <span class="kbd">Generate Input</span> for a new string any time.</p>
+    </aside>
+  </main>
+
+  <footer>
+    Built for classroom use. No network calls, no tracking, fully static.
+  </footer>
+
+<script>
+/* ===========================================
+   1) Expanded rule set (60+ mappings)
+   - Distinct CJK characters (inputs) mapped to other symbols (outputs)
+   - You can add more pairs freely; just ensure uniqueness on the left side
+=========================================== */
+const RULE_SET = {
+  // Core set (previous examples)
+  "日":"文","月":"学","山":"院","水":"河","木":"林","火":"炎","土":"地","金":"銀","風":"気","雨":"雲",
+  "川":"流","花":"美","鳥":"羽","石":"岩","星":"光","一":"甲","二":"乙","三":"丙","四":"丁","五":"戊",
+  "六":"己","七":"庚","八":"辛","九":"壬","十":"癸",
+
+  // Additional mappings (more variety)
+  "田":"畑","口":"言","心":"意","手":"技","目":"視","耳":"聴","足":"歩","門":"戸","学":"知","言":"語",
+  "書":"章","道":"途","空":"宙","海":"洋","林":"森","森":"樹","電":"光","車":"輪","道":"径","国":"邦",
+  "文":"典","青":"蒼","赤":"朱","白":"皓","黒":"玄","春":"芽","夏":"暑","秋":"穂","冬":"雪","家":"宅",
+  "友":"朋","力":"勢","気":"息","音":"響","光":"輝","影":"陰","石":"碑","山":"岳","川":"渓","湖":"沼",
+  "島":"嶼","波":"涛","船":"艦","空":"碧","雨":"霖","風":"颯","雲":"霞","星":"曜","月":"朔","日":"暦"
+};
+// Note: Some inputs repeat with different outputs in the list above to show variety;
+// the last defined mapping will be used (standard JS object behavior). Adjust as needed.
+
+/* ===========================================
+   2) State
+=========================================== */
+let currentInput = "";
+let expectedOutput = "";
+let round = 0;
+
+/* ===========================================
+   3) Utility: sample array & unique
+=========================================== */
+function randInt(min, max){ return Math.floor(Math.random() * (max - min + 1)) + min; }
+function unique(arr){ return [...new Set(arr)]; }
+
+/* ===========================================
+   4) Generate Input
+      - Random length: defaults to 8–12 (configurable)
+      - Picks symbols from RULE_SET keys
+=========================================== */
+function generateInput(){
+  const minLen = Number(document.getElementById("minLen").value) || 8;
+  const maxLen = Number(document.getElementById("maxLen").value) || 12;
+  const keys = Object.keys(RULE_SET);
+
+  const length = randInt(Math.min(minLen, maxLen), Math.max(minLen, maxLen));
+  let input = "";
+  for(let i=0;i<length;i++){
+    input += keys[randInt(0, keys.length - 1)];
+  }
+
+  currentInput = input;
+  expectedOutput = [...input].map(ch => RULE_SET[ch] ?? "�").join("");
+
+  document.getElementById("inputSymbols").textContent = currentInput;
+
+  renderRules();
+  resetUI();
+
+  round += 1;
+  const chip = document.getElementById("roundChip");
+  chip.textContent = `Round ${round}`;
+  chip.classList.remove("hidden");
+}
+
+/* ===========================================
+   5) Render rules
+      - By default, show rules only for used symbols
+      - Optionally show the full rulebook
+=========================================== */
+function renderRules(){
+  const ul = document.getElementById("ruleList");
+  ul.innerHTML = "";
+
+  const showAll = document.getElementById("showAllRules").checked;
+  const symbols = showAll ? Object.keys(RULE_SET) : unique([...currentInput]);
+
+  symbols.sort().forEach(sym => {
+    const li = document.createElement("li");
+    li.textContent = `"${sym}" → "${RULE_SET[sym]}"`;
+    ul.appendChild(li);
+  });
+}
+
+/* ===========================================
+   6) Check / Reveal
+=========================================== */
+function checkAnswer(){
+  const user = document.getElementById("userOutput").value.trim();
+  const card = document.getElementById("feedbackCard");
+  const fb = document.getElementById("feedback");
+
+  if(!currentInput){
+    fb.innerHTML = "Please click <strong>Generate Input</strong> first.";
+    card.classList.remove("hidden");
+    return;
+  }
+
+  if(user === expectedOutput){
+    fb.innerHTML = `<span class="ok">✔ Correct!</span> You followed the rules exactly. 
+    Notice: high performance via syntax does not imply semantic understanding.`;
+  } else {
+    // Offer a diff-style hint: first mismatch position
+    let idx = -1;
+    for(let i=0;i<Math.max(user.length, expectedOutput.length); i++){
+      if(user[i] !== expectedOutput[i]){ idx = i; break; }
+    }
+    if(idx >= 0){
+      fb.innerHTML = `<span class="bad">✖ Incorrect.</span> Check the mapping at position <strong>${idx+1}</strong>.<br>
+      Expected <span class="kbd">${expectedOutput[idx] || "∅"}</span> but got <span class="kbd">${user[idx] || "∅"}</span>.`;
+    } else {
+      fb.innerHTML = `<span class="bad">✖ Incorrect length.</span> The output should have ${expectedOutput.length} symbols.`;
+    }
+  }
+  card.classList.remove("hidden");
+}
+
+function revealAnswer(){
+  const card = document.getElementById("feedbackCard");
+  const fb = document.getElementById("feedback");
+
+  if(!currentInput){
+    fb.innerHTML = "Please click <strong>Generate Input</strong> first.";
+  } else {
+    fb.innerHTML = `Expected output:<br><span class="sym">${expectedOutput}</span>`;
+  }
+  card.classList.remove("hidden");
+}
+
+function resetUI(){
+  document.getElementById("userOutput").value = "";
+  document.getElementById("feedbackCard").classList.add("hidden");
+}
+
+/* ===========================================
+   7) UI toggles
+=========================================== */
+function toggleSettings(){
+  const s = document.getElementById("settings");
+  s.classList.toggle("hidden");
+}
+
+// Initialize with a first round so the page isn't empty
+generateInput();
+</script>
+</body>
+</html>
